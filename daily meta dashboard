@@ -330,4 +330,151 @@ function buildCampaignSection(key, c, chartIdSuffix){
             {
               label: "실측값", data: c[m.key],
               borderColor: colors[key].line, backgroundColor: colors[key].line,
-              pointBackgroundColor:
+              pointBackgroundColor: pointColors,
+              pointRadius: c.dates.map((d,i)=> nonDeliveryIdx.has(i) ? 5 : 2),
+              borderWidth: 2, tension: 0.25, spanGaps: true
+            },
+            {
+              label: "7일 이동평균", data: maMap[m.key],
+              borderColor: colors[key].ma, borderDash: [5,4], borderWidth: 2,
+              pointRadius: 0, tension: 0.25, spanGaps: true
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterBody: (items) => {
+                  const idx = items[0].dataIndex;
+                  return nonDeliveryIdx.has(idx) ? "⚠ 미송출(집행 중단) — 해당일만 영향" : "";
+                }
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { font: { size: 10 } }, grid: { color: "#f0f1f3" } }
+          }
+        }
+      });
+    });
+  });
+
+  return section;
+}
+
+// ---- 전체(All) 탭: 결합 요약 + AOS/iOS 결합 추이 차트 ----
+function buildAllTab(){
+  const aos = DATA.campaigns.aos, ios = DATA.campaigns.ios;
+  const lastIdx = aos.dates.length - 1;
+  const prevWeekIdx = lastIdx - 7;
+
+  const totalSpendYesterday = aos.spend[lastIdx] + ios.spend[lastIdx];
+  const totalInstallsYesterday = aos.installs[lastIdx] + ios.installs[lastIdx];
+  const blendedCpaYesterday = totalInstallsYesterday ? totalSpendYesterday/totalInstallsYesterday : null;
+  const totalSpendPrevWeek = aos.spend[prevWeekIdx] + ios.spend[prevWeekIdx];
+  const totalInstallsPrevWeek = aos.installs[prevWeekIdx] + ios.installs[prevWeekIdx];
+  const blendedCpaPrevWeek = totalInstallsPrevWeek ? totalSpendPrevWeek/totalInstallsPrevWeek : null;
+
+  const aosShare = (aos.spend[lastIdx]/totalSpendYesterday*100);
+  const iosShare = 100 - aosShare;
+
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="campaign-title all"><span class="dot"></span><h2>전체 합계 (AOS + iOS)</h2><span>최근 14일: ${fmtDate(aos.dates[0])} ~ ${fmtDate(aos.dates[lastIdx])}</span></div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="label">어제 총 지출</div>
+        <div class="value">${fmtMoney(totalSpendYesterday)}</div>
+        ${deltaBadge(totalSpendYesterday, totalSpendPrevWeek, null)}
+      </div>
+      <div class="kpi">
+        <div class="label">어제 총 설치 수</div>
+        <div class="value">${fmtInt(totalInstallsYesterday)}</div>
+        ${deltaBadge(totalInstallsYesterday, totalInstallsPrevWeek, false)}
+      </div>
+      <div class="kpi">
+        <div class="label">어제 통합 CPA</div>
+        <div class="value">${fmtMoney(blendedCpaYesterday)}</div>
+        ${deltaBadge(blendedCpaYesterday, blendedCpaPrevWeek, true)}
+      </div>
+      <div class="kpi">
+        <div class="label">AOS 지출 비중</div>
+        <div class="value">${aosShare.toFixed(0)}%</div>
+        <div class="avg7">iOS ${iosShare.toFixed(0)}%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">플랫폼 수</div>
+        <div class="value">2</div>
+        <div class="avg7">AOS · iOS</div>
+      </div>
+    </div>
+    <div class="split-card" style="margin-bottom:20px;">
+      <div class="title">어제 지출 배분</div>
+      <div class="split-bar">
+        <div style="width:${aosShare}%; background:${colors.aos.line};"></div>
+        <div style="width:${iosShare}%; background:${colors.ios.line};"></div>
+      </div>
+      <div class="split-legend">
+        <span>AOS ${fmtMoney(aos.spend[lastIdx])} (${aosShare.toFixed(0)}%)</span>
+        <span>iOS ${fmtMoney(ios.spend[lastIdx])} (${iosShare.toFixed(0)}%)</span>
+      </div>
+    </div>
+    <div class="charts-grid" id="all-charts"></div>
+    <div class="legend-note">
+      <span class="swatch" style="background:${colors.aos.line}"></span>AOS &nbsp;&nbsp;
+      <span class="swatch" style="background:${colors.ios.line}"></span>iOS &nbsp;&nbsp; (실선 = 일별 실측값, 굵기 얇은 점선 = 7일 이동평균)
+    </div>
+  `;
+
+  const chartsGrid = wrap.querySelector("#all-charts");
+  metricDefs.forEach(m => {
+    const card = document.createElement("div");
+    card.className = "chart-card";
+    card.innerHTML = `<div class="title">${m.title} — AOS vs iOS</div><div class="chart-wrap"><canvas id="chart-all-${m.key}"></canvas></div>`;
+    chartsGrid.appendChild(card);
+  });
+
+  requestAnimationFrame(() => {
+    metricDefs.forEach(m => {
+      const canvas = document.getElementById(`chart-all-${m.key}`);
+      const ctx = canvas.getContext("2d");
+      const aosMA = movingAvg7(aos[m.key], new Set());
+      const iosMA = movingAvg7(ios[m.key], new Set());
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: aos.dates.map(fmtDate),
+          datasets: [
+            { label: "AOS", data: aos[m.key], borderColor: colors.aos.line, borderWidth: 2, pointRadius: 2, tension: 0.25 },
+            { label: "AOS 7일평균", data: aosMA, borderColor: colors.aos.ma, borderDash: [5,4], borderWidth: 1.5, pointRadius: 0, tension: 0.25 },
+            { label: "iOS", data: ios[m.key], borderColor: colors.ios.line, borderWidth: 2, pointRadius: 2, tension: 0.25 },
+            { label: "iOS 7일평균", data: iosMA, borderColor: colors.ios.ma, borderDash: [5,4], borderWidth: 1.5, pointRadius: 0, tension: 0.25 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { font: { size: 10 } }, grid: { color: "#f0f1f3" } }
+          }
+        }
+      });
+    });
+  });
+
+  return wrap;
+}
+
+document.getElementById("tab-all").appendChild(buildAllTab());
+document.getElementById("tab-aos").appendChild(buildCampaignSection("aos", DATA.campaigns.aos, "aos"));
+document.getElementById("tab-ios").appendChild(buildCampaignSection("ios", DATA.campaigns.ios, "ios"));
+</script>
+</body>
+</html>
