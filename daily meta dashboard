@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>메타 일별 광고 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --panel: #f7f8fa;
+    --border: #e5e7eb;
+    --text: #1f2430;
+    --sub: #6b7280;
+    --all: #7c3aed;
+    --all-soft: #c4b5fd;
+    --aos: #2563eb;
+    --aos-soft: #93c5fd;
+    --ios: #ea580c;
+    --ios-soft: #fdba74;
+    --good: #16a34a;
+    --bad: #dc2626;
+    --warn-bg: #fff7ed;
+    --warn-border: #fdba74;
+    --ok-bg: #f0fdf4;
+    --ok-border: #86efac;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, Roboto, sans-serif;
+    font-size: 14px;
+    padding: 20px 24px 40px;
+  }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  .sub { color: var(--sub); font-size: 12.5px; margin: 0 0 14px; }
+  .updated { color: var(--sub); font-size: 12px; }
+
+  .tabs { display: flex; gap: 6px; margin: 14px 0 18px; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    appearance: none; border: none; background: none; cursor: pointer;
+    padding: 8px 16px; font-size: 13.5px; font-weight: 600; color: var(--sub);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab-btn .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .tab-btn[data-tab="all"] .dot { background: var(--all); }
+  .tab-btn[data-tab="aos"] .dot { background: var(--aos); }
+  .tab-btn[data-tab="ios"] .dot { background: var(--ios); }
+  .tab-btn.active { color: var(--text); }
+  .tab-btn[data-tab="all"].active { border-color: var(--all); }
+  .tab-btn[data-tab="aos"].active { border-color: var(--aos); }
+  .tab-btn[data-tab="ios"].active { border-color: var(--ios); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .banner {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .banner.ok { background: var(--ok-bg); border: 1px solid var(--ok-border); color: #166534; }
+  .banner.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: #9a3412; }
+  .banner b { font-weight: 700; }
+
+  .campaign-section { margin-bottom: 28px; }
+  .campaign-title { display:flex; align-items:baseline; gap:8px; margin-bottom:10px; }
+  .campaign-title .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .campaign-title.all .dot { background: var(--all); }
+  .campaign-title.aos .dot { background: var(--aos); }
+  .campaign-title.ios .dot { background: var(--ios); }
+  .campaign-title h2 { font-size: 15px; margin: 0; }
+  .campaign-title span { color: var(--sub); font-size: 12px; }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .kpi .label { font-size: 11.5px; color: var(--sub); margin-bottom: 4px; }
+  .kpi .value { font-size: 17px; font-weight: 700; }
+  .kpi .delta { font-size: 11.5px; margin-top: 3px; }
+  .kpi .delta.up { color: var(--bad); }
+  .kpi .delta.down { color: var(--good); }
+  .kpi .delta.flat { color: var(--sub); }
+  .kpi .avg7 { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+  .split-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .split-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  }
+  .split-card .title { font-size: 12.5px; font-weight: 600; margin-bottom: 8px; }
+  .split-bar { display:flex; height: 10px; border-radius: 6px; overflow: hidden; margin-bottom: 6px; }
+  .split-legend { display:flex; justify-content: space-between; font-size: 11.5px; color: var(--sub); }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+  .chart-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px 6px;
+    height: 230px;
+  }
+  .chart-card .title { font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+  .chart-wrap { position: relative; height: 178px; }
+
+  .legend-note {
+    font-size: 11.5px; color: var(--sub); margin: 10px 0 26px; line-height: 1.7;
+  }
+  .legend-note .swatch { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+
+  footer { color: var(--sub); font-size: 11.5px; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>메타 일별 광고 대시보드</h1>
+<p class="sub">2026 SME AppPromo · AOS / iOS · 최근 14일 롤링 · 세금환급 서비스</p>
+<p class="updated" id="updatedAt"></p>
+
+<div id="banner"></div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="all"><span class="dot"></span>전체</button>
+  <button class="tab-btn" data-tab="aos"><span class="dot"></span>AOS</button>
+  <button class="tab-btn" data-tab="ios"><span class="dot"></span>iOS</button>
+</div>
+
+<div id="tab-all" class="tab-panel active"></div>
+<div id="tab-aos" class="tab-panel"></div>
+<div id="tab-ios" class="tab-panel"></div>
+
+<footer>
+  데이터 출처: 메타 광고 관리자 "일별 트래킹 (Claude 자동분석)" 리포트 (계정 1021385402366522). 매일 10:30 예약 작업이 최신 값으로 이 대시보드를 갱신합니다. iOS는 SKAN 계측 한계로 실제 성과가 과소·왜곡 측정될 수 있습니다. 최근 2~3일 전환 지표는 7일 클릭 어트리뷰션 소급 집계로 아직 미확정일 수 있습니다.
+</footer>
+
+<script>
+/* ===================== 데이터 (매일 이 블록만 교체됩니다) ===================== */
+const DATA = {
+  updatedAt: "2026-07-22 10:39 KST",
+  campaigns: {
+    aos: {
+      label: "2026 SME AppPromo-AOS",
+      color: "aos",
+      nonDelivery: [],
+      dates:   ["2026-07-08","2026-07-09","2026-07-10","2026-07-11","2026-07-12","2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21"],
+      spend:   [815.43,843.09,826.26,881.56,892.10,887.17,964.32,816.93,646.22,697.11,807.15,809.32,770.67,779.09],
+      cpm:     [9.55,9.66,8.62,9.10,9.45,8.17,8.88,7.50,7.67,8.06,7.92,7.85,7.79,8.20],
+      ctr:     [0.85,0.87,0.79,0.80,0.91,0.75,0.83,0.87,0.82,0.86,0.76,0.86,0.88,0.81],
+      installs:[260,247,239,229,231,248,262,281,176,223,325,278,237,253],
+      cpa:     [3.14,3.41,3.46,3.85,3.86,3.58,3.68,2.91,3.67,3.13,2.48,2.91,3.25,3.08]
+    },
+    ios: {
+      label: "2026 SME AppPromo-iOS",
+      color: "ios",
+      nonDelivery: [],
+      dates:   ["2026-07-08","2026-07-09","2026-07-10","2026-07-11","2026-07-12","2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21"],
+      spend:   [442.63,594.44,228.56,788.98,811.85,511.76,697.80,481.10,359.06,392.70,445.97,313.09,398.61,431.77],
+      cpm:     [8.50,8.38,7.54,8.32,7.81,7.45,7.89,6.74,5.85,5.83,4.93,5.61,5.95,6.37],
+      ctr:     [0.57,0.46,0.64,0.63,0.61,0.61,0.87,1.42,1.36,1.25,1.56,1.44,1.16,1.29],
+      installs:[67,79,25,137,155,83,155,149,104,121,106,116,93,124],
+      cpa:     [6.61,7.52,9.14,5.76,5.24,6.17,4.50,3.23,3.45,3.25,4.21,2.70,4.29,3.48]
+    }
+  }
+};
+/* ================================================================================ */
+
+const WEEKDAY = ["일","월","화","수","목","금","토"];
+function fmtDate(d){
+  const dt = new Date(d + "T00:00:00+09:00");
+  const m = dt.getMonth()+1, day = dt.getDate();
+  return `${m}/${day}(${WEEKDAY[dt.getDay()]})`;
+}
+function movingAvg7(values, nonDeliveryIdx){
+  return values.map((_, i) => {
+    const start = Math.max(0, i-6);
+    let sum = 0, cnt = 0;
+    for (let j = start; j <= i; j++){
+      if (nonDeliveryIdx.has(j)) continue;
+      sum += values[j]; cnt++;
+    }
+    return cnt > 0 ? sum/cnt : null;
+  });
+}
+function fmtMoney(v){ return v==null ? "—" : "$"+v.toFixed(2); }
+function fmtPct(v){ return v==null ? "—" : v.toFixed(2)+"%"; }
+function fmtInt(v){ return v==null ? "—" : Math.round(v).toLocaleString(); }
+
+function deltaBadge(curr, prev, lowerIsBetter){
+  if (curr==null || prev==null || prev===0) return `<span class="delta flat">전주 동요일 데이터 없음</span>`;
+  const diff = curr - prev;
+  const pct = (diff/prev*100);
+  const better = lowerIsBetter ? diff < 0 : diff > 0;
+  const cls = Math.abs(pct) < 1 ? "flat" : (better ? "down" : "up");
+  const arrow = diff > 0 ? "▲" : (diff < 0 ? "▼" : "→");
+  return `<span class="delta ${cls}">${arrow} 전주 동요일 대비 ${pct>=0?"+":""}${pct.toFixed(1)}%</span>`;
+}
+
+const colors = {
+  all: { line: "#7c3aed", ma: "#c4b5fd" },
+  aos: { line: "#2563eb", ma: "#93c5fd" },
+  ios: { line: "#ea580c", ma: "#fdba74" }
+};
+
+const metricDefs = [
+  { key: "spend", title: "지출 ($)" },
+  { key: "cpm", title: "CPM (도달 1,000명당)" },
+  { key: "ctr", title: "CTR (%)" },
+  { key: "cpa", title: "설치 CPA ($)" }
+];
+
+// ---- 배너 (공통, 전체 탭 상단에 표기) ----
+const allNonDelivery = [];
+Object.values(DATA.campaigns).forEach(c => {
+  c.nonDelivery.forEach(d => allNonDelivery.push(`${c.label} · ${fmtDate(d)}`));
+});
+document.getElementById("updatedAt").textContent = "마지막 갱신: " + DATA.updatedAt;
+
+const bannerEl = document.getElementById("banner");
+if (allNonDelivery.length){
+  bannerEl.innerHTML = `<div class="banner warn">
+    <b>⚠ 미송출(집행 중단) 감지</b> — ${allNonDelivery.map(x=>`<b>${x}</b>`).join(", ")}<br>
+    해당 날짜는 광고 집행 자체가 중단되어 발생한 결과이며, <b>그 날짜에만 영향</b>이 있습니다. 7일 이동평균·추세·전주 대비 비교에서는 결측치로 제외해 계산했습니다.
+  </div>`;
+} else {
+  bannerEl.innerHTML = `<div class="banner ok"><b>✓ 최근 14일 중 iOS 미송출(집행 중단)일 없음</b> — 모든 지표가 정상 송출 기준입니다.</div>`;
+}
+
+// ---- 탭 전환 ----
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ---- 캠페인별 KPI + 차트 섹션 생성 (AOS/iOS 탭 + 전체 탭에서 재사용) ----
+function buildCampaignSection(key, c, chartIdSuffix){
+  const nonDeliveryIdx = new Set(c.nonDelivery.map(d => c.dates.indexOf(d)).filter(i=>i>=0));
+  const lastIdx = c.dates.length - 1;
+  const prevWeekIdx = lastIdx - 7;
+
+  const spendMA = movingAvg7(c.spend, nonDeliveryIdx);
+  const cpmMA = movingAvg7(c.cpm, nonDeliveryIdx);
+  const ctrMA = movingAvg7(c.ctr, nonDeliveryIdx);
+  const cpaMA = movingAvg7(c.cpa, nonDeliveryIdx);
+  const maMap = { spend: spendMA, cpm: cpmMA, ctr: ctrMA, cpa: cpaMA };
+
+  const section = document.createElement("div");
+  section.className = "campaign-section";
+  section.innerHTML = `
+    <div class="campaign-title ${c.color}"><span class="dot"></span><h2>${c.label}</h2><span>최근 14일: ${fmtDate(c.dates[0])} ~ ${fmtDate(c.dates[lastIdx])}</span></div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="label">어제 지출</div>
+        <div class="value">${fmtMoney(c.spend[lastIdx])}</div>
+        ${deltaBadge(c.spend[lastIdx], c.spend[prevWeekIdx], null)}
+        <div class="avg7">7일 평균 ${fmtMoney(spendMA[lastIdx])}</div>
+      </div>
+      <div class="kpi">
+        <div class="label">어제 설치 수</div>
+        <div class="value">${fmtInt(c.installs[lastIdx])}</div>
+        ${deltaBadge(c.installs[lastIdx], c.installs[prevWeekIdx], false)}
+        <div class="avg7">&nbsp;</div>
+      </div>
+      <div class="kpi">
+        <div class="label">어제 설치 CPA</div>
+        <div class="value">${fmtMoney(c.cpa[lastIdx])}</div>
+        ${deltaBadge(c.cpa[lastIdx], c.cpa[prevWeekIdx], true)}
+        <div class="avg7">7일 평균 ${fmtMoney(cpaMA[lastIdx])}</div>
+      </div>
+      <div class="kpi">
+        <div class="label">어제 CTR</div>
+        <div class="value">${fmtPct(c.ctr[lastIdx])}</div>
+        ${deltaBadge(c.ctr[lastIdx], c.ctr[prevWeekIdx], false)}
+        <div class="avg7">7일 평균 ${fmtPct(ctrMA[lastIdx])}</div>
+      </div>
+      <div class="kpi">
+        <div class="label">어제 CPM</div>
+        <div class="value">${fmtMoney(c.cpm[lastIdx])}</div>
+        ${deltaBadge(c.cpm[lastIdx], c.cpm[prevWeekIdx], true)}
+        <div class="avg7">7일 평균 ${fmtMoney(cpmMA[lastIdx])}</div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      ${metricDefs.map(m => `
+        <div class="chart-card">
+          <div class="title">${m.title}</div>
+          <div class="chart-wrap"><canvas id="chart-${chartIdSuffix}-${m.key}"></canvas></div>
+        </div>
+      `).join("")}
+    </div>
+    <div class="legend-note">
+      <span class="swatch" style="background:${colors[key].line}"></span>일별 실측값
+      &nbsp;&nbsp;<span class="swatch" style="background:${colors[key].ma}; border-top:2px dashed ${colors[key].ma}"></span>7일 이동평균(미송출일 제외)
+      ${c.nonDelivery.length ? `&nbsp;&nbsp;<span style="color:#9a3412;">● 미송출(집행중단)일 — 추세 계산에서 제외</span>` : ""}
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    metricDefs.forEach(m => {
+      const canvas = document.getElementById(`chart-${chartIdSuffix}-${m.key}`);
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const pointColors = c.dates.map((d,i) => nonDeliveryIdx.has(i) ? "#dc2626" : colors[key].line);
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: c.dates.map(fmtDate),
+          datasets: [
+            {
+              label: "실측값", data: c[m.key],
+              borderColor: colors[key].line, backgroundColor: colors[key].line,
+              pointBackgroundColor: pointColors,
+              pointRadius: c.dates.map((d,i)=> nonDeliveryIdx.has(i) ? 5 : 2),
+              borderWidth: 2, tension: 0.25, spanGaps: true
+            },
+            {
+              label: "7일 이동평균", data: maMap[m.key],
+              borderColor: colors[key].ma, borderDash: [5,4], borderWidth: 2,
+              pointRadius: 0, tension: 0.25, spanGaps: true
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterBody: (items) => {
+                  const idx = items[0].dataIndex;
+                  return nonDeliveryIdx.has(idx) ? "⚠ 미송출(집행 중단) — 해당일만 영향" : "";
+                }
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { font: { size: 10 } }, grid: { color: "#f0f1f3" } }
+          }
+        }
+      });
+    });
+  });
+
+  return section;
+}
+
+// ---- 전체(All) 탭: 결합 요약 + AOS/iOS 결합 추이 차트 ----
+function buildAllTab(){
+  const aos = DATA.campaigns.aos, ios = DATA.campaigns.ios;
+  const lastIdx = aos.dates.length - 1;
+  const prevWeekIdx = lastIdx - 7;
+
+  const totalSpendYesterday = aos.spend[lastIdx] + ios.spend[lastIdx];
+  const totalInstallsYesterday = aos.installs[lastIdx] + ios.installs[lastIdx];
+  const blendedCpaYesterday = totalInstallsYesterday ? totalSpendYesterday/totalInstallsYesterday : null;
+  const totalSpendPrevWeek = aos.spend[prevWeekIdx] + ios.spend[prevWeekIdx];
+  const totalInstallsPrevWeek = aos.installs[prevWeekIdx] + ios.installs[prevWeekIdx];
+  const blendedCpaPrevWeek = totalInstallsPrevWeek ? totalSpendPrevWeek/totalInstallsPrevWeek : null;
+
+  const aosShare = (aos.spend[lastIdx]/totalSpendYesterday*100);
+  const iosShare = 100 - aosShare;
+
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="campaign-title all"><span class="dot"></span><h2>전체 합계 (AOS + iOS)</h2><span>최근 14일: ${fmtDate(aos.dates[0])} ~ ${fmtDate(aos.dates[lastIdx])}</span></div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="label">어제 총 지출</div>
+        <div class="value">${fmtMoney(totalSpendYesterday)}</div>
+        ${deltaBadge(totalSpendYesterday, totalSpendPrevWeek, null)}
+      </div>
+      <div class="kpi">
+        <div class="label">어제 총 설치 수</div>
+        <div class="value">${fmtInt(totalInstallsYesterday)}</div>
+        ${deltaBadge(totalInstallsYesterday, totalInstallsPrevWeek, false)}
+      </div>
+      <div class="kpi">
+        <div class="label">어제 통합 CPA</div>
+        <div class="value">${fmtMoney(blendedCpaYesterday)}</div>
+        ${deltaBadge(blendedCpaYesterday, blendedCpaPrevWeek, true)}
+      </div>
+      <div class="kpi">
+        <div class="label">AOS 지출 비중</div>
+        <div class="value">${aosShare.toFixed(0)}%</div>
+        <div class="avg7">iOS ${iosShare.toFixed(0)}%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">플랫폼 수</div>
+        <div class="value">2</div>
+        <div class="avg7">AOS · iOS</div>
+      </div>
+    </div>
+    <div class="split-card" style="margin-bottom:20px;">
+      <div class="title">어제 지출 배분</div>
+      <div class="split-bar">
+        <div style="width:${aosShare}%; background:${colors.aos.line};"></div>
+        <div style="width:${iosShare}%; background:${colors.ios.line};"></div>
+      </div>
+      <div class="split-legend">
+        <span>AOS ${fmtMoney(aos.spend[lastIdx])} (${aosShare.toFixed(0)}%)</span>
+        <span>iOS ${fmtMoney(ios.spend[lastIdx])} (${iosShare.toFixed(0)}%)</span>
+      </div>
+    </div>
+    <div class="charts-grid" id="all-charts"></div>
+    <div class="legend-note">
+      <span class="swatch" style="background:${colors.aos.line}"></span>AOS &nbsp;&nbsp;
+      <span class="swatch" style="background:${colors.ios.line}"></span>iOS &nbsp;&nbsp; (실선 = 일별 실측값, 굵기 얇은 점선 = 7일 이동평균)
+    </div>
+  `;
+
+  const chartsGrid = wrap.querySelector("#all-charts");
+  metricDefs.forEach(m => {
+    const card = document.createElement("div");
+    card.className = "chart-card";
+    card.innerHTML = `<div class="title">${m.title} — AOS vs iOS</div><div class="chart-wrap"><canvas id="chart-all-${m.key}"></canvas></div>`;
+    chartsGrid.appendChild(card);
+  });
+
+  requestAnimationFrame(() => {
+    metricDefs.forEach(m => {
+      const canvas = document.getElementById(`chart-all-${m.key}`);
+      const ctx = canvas.getContext("2d");
+      const aosMA = movingAvg7(aos[m.key], new Set());
+      const iosMA = movingAvg7(ios[m.key], new Set());
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: aos.dates.map(fmtDate),
+          datasets: [
+            { label: "AOS", data: aos[m.key], borderColor: colors.aos.line, borderWidth: 2, pointRadius: 2, tension: 0.25 },
+            { label: "AOS 7일평균", data: aosMA, borderColor: colors.aos.ma, borderDash: [5,4], borderWidth: 1.5, pointRadius: 0, tension: 0.25 },
+            { label: "iOS", data: ios[m.key], borderColor: colors.ios.line, borderWidth: 2, pointRadius: 2, tension: 0.25 },
+            { label: "iOS 7일평균", data: iosMA, borderColor: colors.ios.ma, borderDash: [5,4], borderWidth: 1.5, pointRadius: 0, tension: 0.25 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { font: { size: 10 } }, grid: { color: "#f0f1f3" } }
+          }
+        }
+      });
+    });
+  });
+
+  return wrap;
+}
+
+document.getElementById("tab-all").appendChild(buildAllTab());
+document.getElementById("tab-aos").appendChild(buildCampaignSection("aos", DATA.campaigns.aos, "aos"));
+document.getElementById("tab-ios").appendChild(buildCampaignSection("ios", DATA.campaigns.ios, "ios"));
+</script>
+</body>
+</html>
